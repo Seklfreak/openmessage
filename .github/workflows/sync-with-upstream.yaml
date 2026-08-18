@@ -1,0 +1,78 @@
+name: Sync patches branch with upstream
+
+# Daily rebase of the patches branch (local fixes + these workflows) on
+# top of upstream main, plus a manual trigger. Force-pushes when clean —
+# a changed tip retriggers the GHCR publish, an unchanged upstream is a
+# no-op — and fails the run on conflict (GitHub's workflow-failure email
+# is the notification).
+
+on:
+  schedule:
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  rebase:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout patches branch
+        uses: actions/checkout@v4
+        with:
+          ref: patches
+          fetch-depth: 0
+
+      - name: Configure git identity
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Fetch upstream
+        run: |
+          git remote add upstream https://github.com/MaxGhenis/openmessage.git
+          git fetch upstream main
+
+      - name: Rebase onto upstream/main
+        id: rebase
+        run: |
+          # Remember the fork's own tip so we can restore its workflow files
+          # after the rebase (the default GITHUB_TOKEN may not push changes
+          # under .github/workflows/).
+          echo "orig=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          if git rebase upstream/main; then
+            echo "conflict=false" >> "$GITHUB_OUTPUT"
+          else
+            git rebase --abort
+            echo "conflict=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Keep fork workflow files
+        if: steps.rebase.outputs.conflict == 'false'
+        run: |
+          # GITHUB_TOKEN cannot create or update files under .github/workflows/,
+          # so discard any upstream workflow changes the rebase pulled in. This
+          # keeps the push a net-zero change to workflow files, which is allowed.
+          git checkout ${{ steps.rebase.outputs.orig }} -- .github/workflows
+          if ! git diff --cached --quiet; then
+            git commit -m "ci: keep fork workflow files after upstream rebase"
+          fi
+
+      - name: Push rebased branch
+        if: steps.rebase.outputs.conflict == 'false'
+        run: git push --force-with-lease origin patches
+
+      - name: Sync main to upstream
+        if: steps.rebase.outputs.conflict == 'false'
+        run: git push origin upstream/main:refs/heads/main
+
+      - name: Fail on conflict
+        if: steps.rebase.outputs.conflict == 'true'
+        run: |
+          echo "::error::Rebase of patches onto upstream/main hit conflicts; resolve manually:"
+          echo "  git fetch upstream main"
+          echo "  git checkout patches"
+          echo "  git rebase upstream/main   # resolve conflicts"
+          echo "  git push --force-with-lease"
+          exit 1
