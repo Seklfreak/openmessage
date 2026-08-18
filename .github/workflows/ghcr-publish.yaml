@@ -1,0 +1,52 @@
+name: GHCR Publish
+
+# Build the patches branch into ghcr.io/seklfreak/openmessage. The
+# ts-<unixtime>-<sha> tag is what the homelab's Flux ImagePolicy sorts
+# on (no semver exists in this project); sha-* and latest are for
+# humans.
+
+on:
+  push:
+    branches: [ "patches" ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Docker meta
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            ghcr.io/seklfreak/openmessage
+          tags: |
+            type=raw,value=ts-{{date 'X'}}-{{sha}}
+            type=sha
+            type=raw,value=latest
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          platforms: linux/amd64
+          push: true
+          build-args: |
+            VERSION=${{ github.sha }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
