@@ -159,20 +159,27 @@ type App struct {
 	// Connected=true while every send comes back UNKNOWN (the phone has
 	// silently unlinked us). Count consecutive non-SUCCESS Google sends so
 	// the UI can surface a re-pair affordance even while "connected".
-	googleSendFailures        atomic.Int32
-	googleNeedsRepair         atomic.Bool
-	googleAuthExpired         atomic.Bool
-	googlePhoneResponding     atomic.Bool
-	googlePhoneRespondingSeen atomic.Bool
-	googleLifecycleMu         sync.RWMutex
-	googleLifecycleNotifier   GoogleLifecycleNotifier
-	googleRepairPaceMu        sync.RWMutex
-	googleRepairPaceCount     func() uint64
-	signalLifecycleMu         sync.RWMutex
-	signalLifecycleNotifier   SignalLifecycleNotifier
-	tempDataDir               string
-	pendingMediaMu            sync.Mutex
-	pendingMedia              map[string]struct{}
+	googleSendFailures atomic.Int32
+	googleNeedsRepair  atomic.Bool
+	googleAuthExpired  atomic.Bool
+	// googleCookieRefreshAvailable records at startup whether any cookie
+	// refresh mechanism exists (refresh script or native). Without one an
+	// expired session can only be fixed by a manual re-pair, and the
+	// status message must say so instead of promising a refresh that
+	// never comes.
+	googleCookieRefreshAvailable atomic.Bool
+	googleAuthReminderRunning    atomic.Bool
+	googlePhoneResponding        atomic.Bool
+	googlePhoneRespondingSeen    atomic.Bool
+	googleLifecycleMu            sync.RWMutex
+	googleLifecycleNotifier      GoogleLifecycleNotifier
+	googleRepairPaceMu           sync.RWMutex
+	googleRepairPaceCount        func() uint64
+	signalLifecycleMu            sync.RWMutex
+	signalLifecycleNotifier      SignalLifecycleNotifier
+	tempDataDir                  string
+	pendingMediaMu               sync.Mutex
+	pendingMedia                 map[string]struct{}
 }
 
 type GoogleStatusSnapshot struct {

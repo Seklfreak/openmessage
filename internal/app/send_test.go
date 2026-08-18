@@ -154,8 +154,8 @@ func TestSendTextToConversationLookupAuthErrorMarksDisconnected(t *testing.T) {
 	if a.GoogleStatus().NeedsRepair {
 		t.Fatal("auth-invalid lookup error should use cookie-refresh reconnect, not repair")
 	}
-	if got := a.GoogleStatus().LastError; got != googleAuthExpiredStatusMessage {
-		t.Fatalf("last error = %q, want %q", got, googleAuthExpiredStatusMessage)
+	if got := a.GoogleStatus().LastError; got != googleAuthExpiredManualMessage {
+		t.Fatalf("last error = %q, want %q", got, googleAuthExpiredManualMessage)
 	}
 }
 
@@ -206,7 +206,7 @@ func TestSendTextToConversationGoogleAuthErrorMarksDisconnected(t *testing.T) {
 	if a.Connected.Load() {
 		t.Fatal("expected auth error to mark Google disconnected")
 	}
-	if got := a.GoogleStatus().LastError; got != googleAuthExpiredStatusMessage {
-		t.Fatalf("last error = %q, want %q", got, googleAuthExpiredStatusMessage)
+	if got := a.GoogleStatus().LastError; got != googleAuthExpiredManualMessage {
+		t.Fatalf("last error = %q, want %q", got, googleAuthExpiredManualMessage)
 	}
 }

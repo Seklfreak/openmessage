@@ -217,6 +217,10 @@ func RunServe(logger zerolog.Logger, args ...string) error {
 	// credential repair, and terminal parking all flow through this supervisor;
 	// the legacy Connected flag remains a UI projection only.
 	if !isDemo && transports {
+		// Tell the app whether cookie refresh exists so its auth-expiry
+		// status promises "refreshing" only when something will actually
+		// refresh — otherwise it prompts the manual re-pair instead.
+		a.SetGoogleCookieRefreshAvailable(canRefreshGoogleCookies())
 		googleLifecycle = googleadapter.New(googleAccountID, a, canRefreshGoogleCookies)
 		a.SetGoogleLifecycleNotifier(googleLifecycle)
 		if v2Send || v2Ingest {
