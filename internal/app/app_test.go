@@ -332,6 +332,7 @@ func TestIsGoogleAuthInvalid(t *testing.T) {
 
 func TestHandleGoogleAuthExpiredErrorMarksDisconnected(t *testing.T) {
 	a := &App{Logger: zerolog.Nop()}
+	a.SetGoogleCookieRefreshAvailable(true)
 	a.Connected.Store(true)
 	a.googleNeedsRepair.Store(true)
 	a.googleSendFailures.Store(googleRepairThreshold)
@@ -376,6 +377,28 @@ func TestHandleGoogleAuthExpiredErrorMarksDisconnected(t *testing.T) {
 func TestIsGoogleAuthExpiredErrorRecognizesFriendlyStatus(t *testing.T) {
 	if !IsGoogleAuthExpiredError(errors.New(googleAuthExpiredStatusMessage)) {
 		t.Fatal("expected friendly auth-expired status to be recognized")
+	}
+	if !IsGoogleAuthExpiredError(errors.New(googleAuthExpiredManualMessage)) {
+		t.Fatal("expected manual-re-pair auth-expired status to be recognized")
+	}
+}
+
+// An install with no cookie refresh mechanism cannot reconnect on its own, so
+// promising "refreshing and reconnecting..." buries the incident — the first
+// observed expiry sat silent for 12 hours until a scheduled morning send
+// failed. The status must prompt the manual re-pair instead.
+func TestAuthExpiryWithoutRefreshMechanismPromptsManualRepair(t *testing.T) {
+	a := &App{Logger: zerolog.Nop()}
+	err := errors.New("HTTP 401: 16: Request had invalid authentication credentials")
+	if !a.HandleGoogleAuthExpiredError(err) {
+		t.Fatal("expected auth-expired error to be handled")
+	}
+	got := a.GoogleStatus().LastError
+	if got != googleAuthExpiredManualMessage {
+		t.Fatalf("last error = %q, want the manual re-pair message", got)
+	}
+	if !strings.Contains(got, "openmessage pair --google") {
+		t.Fatalf("status %q must name the re-pair command", got)
 	}
 }
 
