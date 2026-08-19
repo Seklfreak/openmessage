@@ -4,11 +4,30 @@ name: GHCR Publish
 # ts-<unixtime>-<sha> tag is what the homelab's Flux ImagePolicy sorts
 # on (no semver exists in this project); sha-* and latest are for
 # humans.
+#
+# Also callable (workflow_call) from the upstream-sync job: its rebase
+# force-push runs as GITHUB_TOKEN, and pushes made with that token never
+# trigger a push event, so the sync workflow has to invoke this build
+# explicitly. The caller passes the commit to build via `ref` — the
+# push-event default (github.sha) would be the pre-rebase tip there.
 
 on:
   push:
     branches: [ "patches" ]
   workflow_dispatch:
+    inputs:
+      ref:
+        description: Commit to build; defaults to the triggering commit.
+        type: string
+        required: false
+        default: ''
+  workflow_call:
+    inputs:
+      ref:
+        description: Commit to build; defaults to the triggering commit.
+        type: string
+        required: false
+        default: ''
 
 permissions:
   contents: read
@@ -20,6 +39,15 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+      - name: Resolve build commit
+        id: commit
+        # Tag from the commit actually checked out, not from github.sha:
+        # on a workflow_call those differ.
+        run: |
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          echo "short=$(git rev-parse --short=7 HEAD)" >> "$GITHUB_OUTPUT"
       - name: Docker meta
         id: meta
         uses: docker/metadata-action@v5
@@ -27,8 +55,8 @@ jobs:
           images: |
             ghcr.io/seklfreak/openmessage
           tags: |
-            type=raw,value=ts-{{date 'X'}}-{{sha}}
-            type=sha
+            type=raw,value=ts-{{date 'X'}}-${{ steps.commit.outputs.short }}
+            type=raw,value=sha-${{ steps.commit.outputs.short }}
             type=raw,value=latest
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -45,7 +73,7 @@ jobs:
           platforms: linux/amd64
           push: true
           build-args: |
-            VERSION=${{ github.sha }}
+            VERSION=${{ steps.commit.outputs.sha }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
