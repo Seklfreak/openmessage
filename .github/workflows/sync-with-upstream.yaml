@@ -5,6 +5,10 @@ name: Sync patches branch with upstream
 # a changed tip retriggers the GHCR publish, an unchanged upstream is a
 # no-op — and fails the run on conflict (GitHub's workflow-failure email
 # is the notification).
+#
+# The fork's own main is deliberately not mirrored to upstream: nothing
+# builds from it, and GITHUB_TOKEN cannot push upstream's .github/workflows
+# changes there (that needs a PAT with the workflow scope).
 
 on:
   schedule:
@@ -62,10 +66,6 @@ jobs:
       - name: Push rebased branch
         if: steps.rebase.outputs.conflict == 'false'
         run: git push --force-with-lease origin patches
-
-      - name: Sync main to upstream
-        if: steps.rebase.outputs.conflict == 'false'
-        run: git push origin upstream/main:refs/heads/main
 
       - name: Fail on conflict
         if: steps.rebase.outputs.conflict == 'true'
