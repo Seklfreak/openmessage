@@ -9,6 +9,11 @@ name: Sync patches branch with upstream
 # The fork's own main is deliberately not mirrored to upstream: nothing
 # builds from it, and GITHUB_TOKEN cannot push upstream's .github/workflows
 # changes there (that needs a PAT with the workflow scope).
+#
+# The publish job below is not optional bookkeeping: a push made with
+# GITHUB_TOKEN does not trigger a push event, so the force-push here can
+# never set off GHCR Publish on its own. It is called directly instead,
+# and only when the rebase actually moved the tip.
 
 on:
   schedule:
@@ -21,6 +26,9 @@ permissions:
 jobs:
   rebase:
     runs-on: ubuntu-latest
+    outputs:
+      changed: ${{ steps.push.outputs.changed }}
+      sha: ${{ steps.push.outputs.sha }}
     steps:
       - name: Checkout patches branch
         uses: actions/checkout@v4
@@ -64,8 +72,18 @@ jobs:
           fi
 
       - name: Push rebased branch
+        id: push
         if: steps.rebase.outputs.conflict == 'false'
-        run: git push --force-with-lease origin patches
+        run: |
+          new=$(git rev-parse HEAD)
+          echo "sha=$new" >> "$GITHUB_OUTPUT"
+          if [ "$new" = "${{ steps.rebase.outputs.orig }}" ]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "Upstream brought nothing new; leaving patches alone."
+            exit 0
+          fi
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+          git push --force-with-lease origin patches
 
       - name: Fail on conflict
         if: steps.rebase.outputs.conflict == 'true'
@@ -76,3 +94,13 @@ jobs:
           echo "  git rebase upstream/main   # resolve conflicts"
           echo "  git push --force-with-lease"
           exit 1
+
+  publish:
+    needs: rebase
+    if: needs.rebase.outputs.changed == 'true'
+    permissions:
+      contents: read
+      packages: write
+    uses: ./.github/workflows/ghcr-publish.yaml
+    with:
+      ref: ${{ needs.rebase.outputs.sha }}
