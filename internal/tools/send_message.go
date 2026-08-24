@@ -12,6 +12,7 @@ import (
 	"go.mau.fi/mautrix-gmessages/pkg/libgm/gmproto"
 
 	"github.com/maxghenis/openmessage/internal/app"
+	"github.com/maxghenis/openmessage/internal/client"
 	"github.com/maxghenis/openmessage/internal/db"
 )
 
@@ -27,7 +28,7 @@ var (
 		if cli == nil {
 			return nil, fmt.Errorf(app.ErrNotConnected)
 		}
-		convResp, err := cli.GM.GetOrCreateConversation(&gmproto.GetOrCreateConversationRequest{
+		convResp, err := cli.GM.GetOrCreateConversation(client.GMContext(), &gmproto.GetOrCreateConversationRequest{
 			Numbers: app.NewContactNumbers([]string{phone}),
 		})
 		if err != nil {
@@ -40,7 +41,7 @@ var (
 		if cli == nil {
 			return nil, fmt.Errorf(app.ErrNotConnected)
 		}
-		return cli.GM.SendMessage(payload)
+		return cli.GM.SendMessage(client.GMContext(), payload)
 	}
 )
 

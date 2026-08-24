@@ -9,6 +9,7 @@ import (
 	"github.com/mark3labs/mcp-go/server"
 
 	"github.com/maxghenis/openmessage/internal/app"
+	"github.com/maxghenis/openmessage/internal/client"
 	"github.com/maxghenis/openmessage/internal/db"
 )
 
@@ -81,7 +82,7 @@ func fetchAndCacheContacts(a *app.App) error {
 	if cli == nil {
 		return fmt.Errorf("not connected")
 	}
-	resp, err := cli.GM.ListContacts()
+	resp, err := cli.GM.ListContacts(client.GMContext())
 	if err != nil {
 		return err
 	}

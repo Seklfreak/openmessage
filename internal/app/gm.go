@@ -6,6 +6,8 @@ import (
 	"strings"
 
 	"go.mau.fi/mautrix-gmessages/pkg/libgm/gmproto"
+
+	"github.com/maxghenis/openmessage/internal/client"
 )
 
 var (
@@ -14,14 +16,14 @@ var (
 		if cli == nil {
 			return nil, fmt.Errorf(ErrNotConnected)
 		}
-		return cli.GM.GetConversation(conversationID)
+		return cli.GM.GetConversation(client.GMContext(), conversationID)
 	}
 	sendGoogleTextPayload = func(a *App, payload *gmproto.SendMessageRequest) (*gmproto.SendMessageResponse, error) {
 		cli := a.GetClient()
 		if cli == nil {
 			return nil, fmt.Errorf(ErrNotConnected)
 		}
-		return cli.GM.SendMessage(payload)
+		return cli.GM.SendMessage(client.GMContext(), payload)
 	}
 )
 

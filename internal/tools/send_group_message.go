@@ -12,6 +12,7 @@ import (
 	"go.mau.fi/mautrix-gmessages/pkg/libgm/gmproto"
 
 	"github.com/maxghenis/openmessage/internal/app"
+	"github.com/maxghenis/openmessage/internal/client"
 	"github.com/maxghenis/openmessage/internal/db"
 )
 
@@ -20,7 +21,7 @@ var getOrCreateGoogleGroupConversationV2 = func(a *app.App, phones []string) (*g
 	if cli == nil {
 		return nil, fmt.Errorf(app.ErrNotConnected)
 	}
-	response, err := cli.GM.GetOrCreateConversation(&gmproto.GetOrCreateConversationRequest{
+	response, err := cli.GM.GetOrCreateConversation(client.GMContext(), &gmproto.GetOrCreateConversationRequest{
 		Numbers: app.NewContactNumbers(phones),
 	})
 	if err != nil {
@@ -90,7 +91,7 @@ func sendGroupMessageHandler(a *app.App, v2Options ...*V2Dependencies) server.To
 			return errorResult(app.ErrNotConnected), nil
 		}
 
-		convResp, err := cli.GM.GetOrCreateConversation(&gmproto.GetOrCreateConversationRequest{
+		convResp, err := cli.GM.GetOrCreateConversation(client.GMContext(), &gmproto.GetOrCreateConversationRequest{
 			Numbers: app.NewContactNumbers(phones),
 		})
 		if err != nil {
@@ -106,7 +107,7 @@ func sendGroupMessageHandler(a *app.App, v2Options ...*V2Dependencies) server.To
 		}
 
 		payload := app.BuildSendPayload(conv.GetConversationID(), message, "", "", nil)
-		resp, err := cli.GM.SendMessage(payload)
+		resp, err := cli.GM.SendMessage(client.GMContext(), payload)
 		if err != nil {
 			if !a.HandleGoogleAuthExpiredError(err) {
 				a.RecordGoogleSendError(err)

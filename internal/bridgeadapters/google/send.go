@@ -25,7 +25,10 @@ type textSendClient interface {
 }
 
 var textSendClientFor = func(cli *client.Client) textSendClient {
-	return cli.GM
+	if cli == nil || cli.GM == nil {
+		return nil
+	}
+	return newGMCompat(cli.GM)
 }
 
 type reactionSendClient interface {
@@ -34,7 +37,10 @@ type reactionSendClient interface {
 }
 
 var reactionSendClientFor = func(cli *client.Client) reactionSendClient {
-	return cli.GM
+	if cli == nil || cli.GM == nil {
+		return nil
+	}
+	return newGMCompat(cli.GM)
 }
 
 type readSendClient interface {
@@ -42,7 +48,10 @@ type readSendClient interface {
 }
 
 var readSendClientFor = func(cli *client.Client) readSendClient {
-	return cli.GM
+	if cli == nil || cli.GM == nil {
+		return nil
+	}
+	return newGMCompat(cli.GM)
 }
 
 type downloadClient interface {
@@ -152,7 +161,10 @@ type mediaSendClient interface {
 }
 
 var mediaSendClientFor = func(cli *client.Client) mediaSendClient {
-	return cli.GM
+	if cli == nil || cli.GM == nil {
+		return nil
+	}
+	return newGMCompat(cli.GM)
 }
 
 // SendText adapts the durable text outbox request to the connected libgm
