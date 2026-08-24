@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"bytes"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -80,7 +79,7 @@ func TestRunServeMCPStdioStartsZeroTransportSupervisors(t *testing.T) {
 	dataDir := t.TempDir()
 	setClientModeTestEnv(t, dataDir)
 
-	var logs bytes.Buffer
+	var logs syncBuffer
 	if err := RunServe(zerolog.New(&logs), "--mcp-stdio"); err != nil {
 		t.Fatalf("RunServe(--mcp-stdio): %v\n%s", err, logs.String())
 	}
@@ -111,7 +110,7 @@ func TestRunServeMCPStdioStartsZeroTransportSupervisors(t *testing.T) {
 	// above against silently passing because the fixtures changed.
 	daemonDataDir := t.TempDir()
 	setClientModeTestEnv(t, daemonDataDir)
-	var daemonLogs bytes.Buffer
+	var daemonLogs syncBuffer
 	if err := RunServe(zerolog.New(&daemonLogs), "--mcp-stdio", "--transports"); err != nil {
 		t.Fatalf("RunServe(--mcp-stdio --transports): %v\n%s", err, daemonLogs.String())
 	}
@@ -162,7 +161,7 @@ func TestRunServeMCPClientAdoptsDaemonTruth(t *testing.T) {
 	setClientModeTestEnv(t, dataDir)
 	t.Setenv("OPENMESSAGES_PORT", daemonURL.Port())
 
-	var logs bytes.Buffer
+	var logs syncBuffer
 	if err := RunServe(zerolog.New(&logs), "--mcp-stdio"); err != nil {
 		t.Fatalf("RunServe(--mcp-stdio): %v\n%s", err, logs.String())
 	}
@@ -209,7 +208,7 @@ func TestRunServeMCPClientAdoptsDaemonDataDir(t *testing.T) {
 		t.Fatalf("unset data dir: %v", err)
 	}
 
-	var logs bytes.Buffer
+	var logs syncBuffer
 	if err := RunServe(zerolog.New(&logs), "--mcp-stdio"); err != nil {
 		t.Fatalf("RunServe(--mcp-stdio): %v\n%s", err, logs.String())
 	}
@@ -284,7 +283,7 @@ func TestRunServeMCPClientDoesNotRepairStore(t *testing.T) {
 	setClientModeTestEnv(t, dataDir)
 	seedLegacyReactionPlaceholder(t, dataDir)
 
-	var logs bytes.Buffer
+	var logs syncBuffer
 	if err := RunServe(zerolog.New(&logs), "--mcp-stdio"); err != nil {
 		t.Fatalf("RunServe(--mcp-stdio): %v\n%s", err, logs.String())
 	}
