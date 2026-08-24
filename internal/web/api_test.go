@@ -19,6 +19,7 @@ import (
 	"github.com/rs/zerolog"
 	"go.mau.fi/mautrix-gmessages/pkg/libgm/gmproto"
 
+	"github.com/google/uuid"
 	"github.com/maxghenis/openmessage/internal/app"
 	"github.com/maxghenis/openmessage/internal/client"
 	"github.com/maxghenis/openmessage/internal/db"
@@ -2902,9 +2903,11 @@ func TestBuildSendPayload(t *testing.T) {
 		t.Errorf("MessageContent mismatch: %+v", mc)
 	}
 
-	// TmpID format: tmp_ followed by 12 digits
-	if !strings.HasPrefix(payload.TmpID, "tmp_") || len(payload.TmpID) != 16 {
-		t.Errorf("TmpID format wrong: %q (want tmp_ + 12 digits)", payload.TmpID)
+	// TmpID must be a random UUID, the shape Google Messages' own app sends.
+	if parsed, err := uuid.Parse(payload.TmpID); err != nil {
+		t.Errorf("TmpID %q is not a UUID: %v", payload.TmpID, err)
+	} else if parsed.Version() != 4 {
+		t.Errorf("TmpID %q is a v%d UUID, want a random v4 for an unkeyed send", payload.TmpID, parsed.Version())
 	}
 	// TmpID must be in all 3 places
 	if payload.MessagePayload.TmpID != payload.TmpID {
@@ -2953,16 +2956,32 @@ func TestBuildSendPayloadNoReply(t *testing.T) {
 	}
 }
 
+// queuedTextTmpID is the UUIDv5 derived from the caller key "tmp_queue_123".
+// Spelled out rather than recomputed: a retry only dedups server-side if it
+// derives the same tmpID as its original send, so a change to the derivation
+// must fail here rather than pass tautologically.
+const queuedTextTmpID = "e126215c-3822-5ebe-9363-72f6f28044da"
+
 func TestBuildSendPayloadWithTmpID(t *testing.T) {
 	payload := app.BuildSendPayloadWithTmpID("conv-1", "Queued text", "", "+15551234567", nil, "tmp_queue_123")
-	if payload.TmpID != "tmp_queue_123" {
-		t.Fatalf("TmpID = %q, want tmp_queue_123", payload.TmpID)
+	if payload.TmpID != queuedTextTmpID {
+		t.Fatalf("TmpID = %q, want %q", payload.TmpID, queuedTextTmpID)
 	}
-	if payload.MessagePayload.TmpID != "tmp_queue_123" {
-		t.Fatalf("MessagePayload.TmpID = %q, want tmp_queue_123", payload.MessagePayload.TmpID)
+	if payload.MessagePayload.TmpID != queuedTextTmpID {
+		t.Fatalf("MessagePayload.TmpID = %q, want %q", payload.MessagePayload.TmpID, queuedTextTmpID)
 	}
-	if payload.MessagePayload.TmpID2 != "tmp_queue_123" {
-		t.Fatalf("MessagePayload.TmpID2 = %q, want tmp_queue_123", payload.MessagePayload.TmpID2)
+	if payload.MessagePayload.TmpID2 != queuedTextTmpID {
+		t.Fatalf("MessagePayload.TmpID2 = %q, want %q", payload.MessagePayload.TmpID2, queuedTextTmpID)
+	}
+	// The retry contract: the same caller key always yields the same tmpID.
+	retry := app.BuildSendPayloadWithTmpID("conv-1", "Queued text", "", "+15551234567", nil, "tmp_queue_123")
+	if retry.TmpID != payload.TmpID {
+		t.Fatalf("retry TmpID = %q, want the original %q", retry.TmpID, payload.TmpID)
+	}
+	// A different key must not collide with it.
+	other := app.BuildSendPayloadWithTmpID("conv-1", "Queued text", "", "+15551234567", nil, "tmp_queue_124")
+	if other.TmpID == payload.TmpID {
+		t.Fatalf("distinct caller keys derived the same tmpID %q", other.TmpID)
 	}
 }
 
@@ -3001,9 +3020,11 @@ func TestBuildSendMediaPayload(t *testing.T) {
 		t.Errorf("MimeType = %q, want image/jpeg", mediaCont.MimeType)
 	}
 
-	// TmpID format: tmp_ followed by 12 digits
-	if !strings.HasPrefix(payload.TmpID, "tmp_") || len(payload.TmpID) != 16 {
-		t.Errorf("TmpID format wrong: %q (want tmp_ + 12 digits)", payload.TmpID)
+	// TmpID must be a random UUID, the shape Google Messages' own app sends.
+	if parsed, err := uuid.Parse(payload.TmpID); err != nil {
+		t.Errorf("TmpID %q is not a UUID: %v", payload.TmpID, err)
+	} else if parsed.Version() != 4 {
+		t.Errorf("TmpID %q is a v%d UUID, want a random v4 for an unkeyed send", payload.TmpID, parsed.Version())
 	}
 	// TmpID must be in all 3 places
 	if payload.MessagePayload.TmpID != payload.TmpID {
@@ -3035,12 +3056,14 @@ func TestBuildSendMediaPayloadWithTmpID(t *testing.T) {
 		MediaID:  "media-abc-123",
 		MimeType: "application/pdf",
 	}
+	// UUIDv5 derived from the caller key "tmp_media_123" — see queuedTextTmpID.
+	const queuedMediaTmpID = "58002a9a-13a4-5f38-8899-cc302aaf8e12"
 	payload := app.BuildSendMediaPayloadWithTmpID("conv-1", media, "+15551234567", nil, "tmp_media_123")
-	if payload.TmpID != "tmp_media_123" {
-		t.Fatalf("TmpID = %q, want tmp_media_123", payload.TmpID)
+	if payload.TmpID != queuedMediaTmpID {
+		t.Fatalf("TmpID = %q, want %q", payload.TmpID, queuedMediaTmpID)
 	}
-	if payload.MessagePayload.TmpID != "tmp_media_123" || payload.MessagePayload.TmpID2 != "tmp_media_123" {
-		t.Fatalf("payload tmp ids = %q/%q, want tmp_media_123", payload.MessagePayload.TmpID, payload.MessagePayload.TmpID2)
+	if payload.MessagePayload.TmpID != queuedMediaTmpID || payload.MessagePayload.TmpID2 != queuedMediaTmpID {
+		t.Fatalf("payload tmp ids = %q/%q, want %q", payload.MessagePayload.TmpID, payload.MessagePayload.TmpID2, queuedMediaTmpID)
 	}
 }
 

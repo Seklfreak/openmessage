@@ -151,7 +151,7 @@ func TestSendPayloadWithTmpIDShapeCharacterization(t *testing.T) {
 			want: &gmproto.SendMessageRequest{
 				ConversationID: "conversation-id",
 				MessagePayload: &gmproto.MessagePayload{
-					TmpID: "transport-request-id",
+					TmpID: "87068c8b-a9ce-5097-b603-df375bad396a",
 					MessageInfo: []*gmproto.MessageInfo{{
 						Data: &gmproto.MessageInfo_MessageContent{
 							MessageContent: &gmproto.MessageContent{Content: "hello"},
@@ -159,10 +159,10 @@ func TestSendPayloadWithTmpIDShapeCharacterization(t *testing.T) {
 					}},
 					ConversationID: "conversation-id",
 					ParticipantID:  "+15551234567",
-					TmpID2:         "transport-request-id",
+					TmpID2:         "87068c8b-a9ce-5097-b603-df375bad396a",
 				},
 				SIMPayload: &gmproto.SIMPayload{Two: 1, SIMNumber: 1},
-				TmpID:      "transport-request-id",
+				TmpID:      "87068c8b-a9ce-5097-b603-df375bad396a",
 				Reply:      &gmproto.ReplyPayload{MessageID: "reply-id"},
 			},
 		},
@@ -172,7 +172,7 @@ func TestSendPayloadWithTmpIDShapeCharacterization(t *testing.T) {
 			want: &gmproto.SendMessageRequest{
 				ConversationID: "conversation-id",
 				MessagePayload: &gmproto.MessagePayload{
-					TmpID: "media-request-id",
+					TmpID: "34fc437f-86c3-530f-89fb-a3da1b837303",
 					MessageInfo: []*gmproto.MessageInfo{{
 						Data: &gmproto.MessageInfo_MediaContent{
 							MediaContent: &gmproto.MediaContent{
@@ -191,16 +191,20 @@ func TestSendPayloadWithTmpIDShapeCharacterization(t *testing.T) {
 					}},
 					ConversationID: "conversation-id",
 					ParticipantID:  "+15557654321",
-					TmpID2:         "media-request-id",
+					TmpID2:         "34fc437f-86c3-530f-89fb-a3da1b837303",
 				},
 				SIMPayload: &gmproto.SIMPayload{Two: 2, SIMNumber: 2},
-				TmpID:      "media-request-id",
+				TmpID:      "34fc437f-86c3-530f-89fb-a3da1b837303",
 			},
 		},
 	}
 
 	// API tests already lock the three TmpID locations. Full proto equality adds
 	// the remaining wire-shape defaults and complete media metadata for Wave 1.
+	// The literal tmpIDs are the UUIDv5 of the caller-owned key under
+	// sendTmpIDNamespace, spelled out rather than recomputed so a change to that
+	// derivation — which would break retry dedup for in-flight sends — fails
+	// here instead of passing tautologically.
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			if !proto.Equal(tt.got, tt.want) {

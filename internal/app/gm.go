@@ -2,9 +2,9 @@ package app
 
 import (
 	"fmt"
-	"math/rand"
 	"strings"
 
+	"github.com/google/uuid"
 	"go.mau.fi/mautrix-gmessages/pkg/libgm/gmproto"
 
 	"github.com/maxghenis/openmessage/internal/client"
@@ -76,11 +76,26 @@ func BuildSendPayload(conversationID, message, replyToID, participantID string, 
 	return BuildSendPayloadWithTmpID(conversationID, message, replyToID, participantID, sim, "")
 }
 
+// sendTmpIDNamespace scopes the UUIDv5 derivation in newSendTmpID. It is an
+// arbitrary fixed UUID — only its stability matters, so never regenerate it:
+// changing it would give in-flight retries a different tmpID than their
+// original send and cost the server-side dedup below.
+var sendTmpIDNamespace = uuid.MustParse("6d9c4a66-641a-4701-b4fc-f2d7e273af24")
+
+// newSendTmpID returns the tmpID to put on the wire for one send.
+//
+// Google Messages' own app uses UUID-format tmpIDs (upstream libgm followed
+// suit in mautrix fa79aa84), so every send from here does too. A caller-owned
+// key — an HTTP idempotency_key, a queued send's request id — is hashed into a
+// UUIDv5 rather than sent verbatim: the derivation is deterministic across
+// processes and restarts, so a retry carrying the same key still produces the
+// same tmpID and Google still dedups it, while the key itself stays a local
+// identifier in outgoing_sends.
 func newSendTmpID(preferred string) string {
 	if preferred = strings.TrimSpace(preferred); preferred != "" {
-		return preferred
+		return uuid.NewSHA1(sendTmpIDNamespace, []byte(preferred)).String()
 	}
-	return fmt.Sprintf("tmp_%012d", rand.Int63n(1e12))
+	return uuid.NewString()
 }
 
 // BuildSendPayloadWithTmpID is BuildSendPayload with an optional caller-owned
