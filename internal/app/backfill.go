@@ -135,7 +135,7 @@ func (a *App) deepBackfill() {
 	}
 
 	for _, folder := range folders {
-		n, aborted := a.paginateFolder(gm, folder, seen, clientToken)
+		n, aborted := a.listFolder(gm, folder, seen, clientToken)
 		if aborted {
 			a.emitConversationsChange()
 			a.emitMessagesChange("")
@@ -196,67 +196,72 @@ func (a *App) deepBackfillShouldAbort(clientToken any, phase string) bool {
 	return true
 }
 
-// paginateFolder fetches all conversations in a folder using cursor pagination.
-// It stores each conversation and adds its ID to the seen map. Returns the
-// number of new conversations found in this folder.
-func (a *App) paginateFolder(gm GMClient, folder gmproto.ListConversationsRequest_Folder, seen map[string]bool, clientToken any) (int, bool) {
-	found := 0
-	var cursor *gmproto.Cursor
+// listFolderConversationCap is how many conversations one folder listing asks
+// for. libgm exposes no cursor for conversation listing — only FetchMessages
+// takes one — so this is a hard ceiling per folder, not a page size. It is far
+// above any realistic Google Messages folder; a folder that reaches it is
+// logged as a warning rather than silently truncated.
+const listFolderConversationCap = 100
 
-	for {
-		if a.deepBackfillShouldAbort(clientToken, "folders") {
+// listFolder fetches one folder's conversations, stores each one and adds its
+// ID to the seen map. Returns the number of new conversations found and whether
+// the deep backfill was aborted.
+func (a *App) listFolder(gm GMClient, folder gmproto.ListConversationsRequest_Folder, seen map[string]bool, clientToken any) (int, bool) {
+	found := 0
+
+	if a.deepBackfillShouldAbort(clientToken, "folders") {
+		return found, true
+	}
+	resp, err := gm.ListConversations(listFolderConversationCap, folder)
+	if err != nil {
+		if a.abortBackfillForGoogleAuthError(err, "folders", fmt.Sprintf("list %s: %v", folder.String(), err)) {
 			return found, true
 		}
-		resp, err := gm.ListConversationsWithCursor(100, folder, cursor)
-		if err != nil {
-			if a.abortBackfillForGoogleAuthError(err, "folders", fmt.Sprintf("list %s: %v", folder.String(), err)) {
-				return found, true
-			}
-			a.Logger.Error().Err(err).Str("folder", folder.String()).Msg("Deep backfill: list conversations failed")
-			a.BackfillProgress.addError(fmt.Sprintf("list %s: %v", folder.String(), err))
-			break
-		}
+		a.Logger.Error().Err(err).Str("folder", folder.String()).Msg("Deep backfill: list conversations failed")
+		a.BackfillProgress.addError(fmt.Sprintf("list %s: %v", folder.String(), err))
+		return found, false
+	}
 
-		convos := resp.GetConversations()
-		if len(convos) == 0 {
-			break
-		}
+	convos := resp.GetConversations()
+	if len(convos) == 0 {
+		return found, false
+	}
 
-		batchFound := 0
-		batchErrors := 0
-		for _, conv := range convos {
-			convID := conv.GetConversationID()
-			if seen[convID] {
-				continue
-			}
-			seen[convID] = true
-			found++
-
-			if err := a.storeConversation(conv); err != nil {
-				a.Logger.Error().Err(err).Str("conv_id", convID).Msg("Deep backfill: store conversation failed")
-				batchErrors++
-				continue
-			}
-			batchFound++
+	batchFound := 0
+	batchErrors := 0
+	for _, conv := range convos {
+		convID := conv.GetConversationID()
+		if seen[convID] {
+			continue
 		}
-		a.BackfillProgress.add(batchFound, 0, 0, 0)
-		if batchErrors > 0 {
-			// Record count but don't spam ErrorDetails with per-conversation store failures
-			for range batchErrors {
-				a.BackfillProgress.addError("")
-			}
-		}
+		seen[convID] = true
+		found++
 
-		cursor = resp.GetCursor()
-		if cursor == nil {
-			break
+		if err := a.storeConversation(conv); err != nil {
+			a.Logger.Error().Err(err).Str("conv_id", convID).Msg("Deep backfill: store conversation failed")
+			batchErrors++
+			continue
 		}
+		batchFound++
+	}
+	a.BackfillProgress.add(batchFound, 0, 0, 0)
+	if batchErrors > 0 {
+		// Record count but don't spam ErrorDetails with per-conversation store failures
+		for range batchErrors {
+			a.BackfillProgress.addError("")
+		}
+	}
 
-		a.Logger.Debug().
+	// A full batch means the folder may hold more than we can reach. Say so:
+	// without a cursor there is no second request to make, and a silently
+	// truncated deep backfill looks exactly like a complete one.
+	if len(convos) >= listFolderConversationCap {
+		a.Logger.Warn().
 			Str("folder", folder.String()).
-			Int("batch", len(convos)).
-			Int("found_so_far", found).
-			Msg("Deep backfill: fetched conversation batch")
+			Int("cap", listFolderConversationCap).
+			Msg("Deep backfill: folder filled the listing cap; conversations beyond it were not reached")
+		a.BackfillProgress.addError(fmt.Sprintf("list %s: hit the %d-conversation cap; older conversations were not reached",
+			folder.String(), listFolderConversationCap))
 	}
 
 	return found, false
@@ -450,7 +455,7 @@ func (a *App) reconcileRecentConversations(reason string) {
 		Int("message_limit", recentReconcileMessageLimit).
 		Msg("Reconciling recent conversations")
 
-	resp, err := gm.ListConversationsWithCursor(recentReconcileConversationLimit, gmproto.ListConversationsRequest_INBOX, nil)
+	resp, err := gm.ListConversations(recentReconcileConversationLimit, gmproto.ListConversationsRequest_INBOX)
 	if err != nil {
 		if a.HandleGoogleAuthExpiredError(err) {
 			a.Logger.Warn().Err(err).Str("reason", reason).Msg("Recent reconcile aborted because Google auth expired")
