@@ -25,7 +25,7 @@ func RunDebugMedia(logger zerolog.Logger, convID string) error {
 		return fmt.Errorf("client not connected")
 	}
 
-	resp, err := cli.GM.FetchMessages(convID, 10, nil)
+	resp, err := cli.GM.FetchMessages(client.GMContext(), convID, 10, nil)
 	if err != nil {
 		return fmt.Errorf("fetch: %w", err)
 	}

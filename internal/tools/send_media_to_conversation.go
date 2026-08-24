@@ -18,6 +18,7 @@ import (
 	"go.mau.fi/mautrix-gmessages/pkg/libgm/gmproto"
 
 	"github.com/maxghenis/openmessage/internal/app"
+	"github.com/maxghenis/openmessage/internal/client"
 	"github.com/maxghenis/openmessage/internal/db"
 	"github.com/maxghenis/openmessage/internal/messaging"
 	"github.com/maxghenis/openmessage/internal/v2wire"
@@ -42,14 +43,14 @@ var (
 		if cli == nil {
 			return nil, fmt.Errorf(app.ErrNotConnected)
 		}
-		return cli.GM.GetConversation(conversationID)
+		return cli.GM.GetConversation(client.GMContext(), conversationID)
 	}
 	sendGoogleMediaMessage = func(a *app.App, payload *gmproto.SendMessageRequest) (*gmproto.SendMessageResponse, error) {
 		cli := a.GetClient()
 		if cli == nil {
 			return nil, fmt.Errorf(app.ErrNotConnected)
 		}
-		return cli.GM.SendMessage(payload)
+		return cli.GM.SendMessage(client.GMContext(), payload)
 	}
 )
 

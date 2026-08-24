@@ -66,7 +66,7 @@ func (a *App) Backfill() error {
 
 	a.Logger.Info().Msg("Starting backfill of conversations and messages")
 
-	resp, err := cli.GM.ListConversations(100, gmproto.ListConversationsRequest_INBOX)
+	resp, err := cli.GM.ListConversations(client.GMContext(), 100, gmproto.ListConversationsRequest_INBOX)
 	if err != nil {
 		a.HandleGoogleAuthExpiredError(err)
 		return fmt.Errorf("list conversations: %w", err)
@@ -81,7 +81,7 @@ func (a *App) Backfill() error {
 			continue
 		}
 
-		msgResp, err := cli.GM.FetchMessages(conv.GetConversationID(), 20, nil)
+		msgResp, err := cli.GM.FetchMessages(client.GMContext(), conv.GetConversationID(), 20, nil)
 		if err != nil {
 			if a.HandleGoogleAuthExpiredError(err) {
 				return fmt.Errorf("fetch messages %s: %w", conv.GetConversationID(), err)

@@ -90,7 +90,7 @@ func (a *Adapter) loadClient() (*client.Client, transportClient, error) {
 	if err != nil {
 		return nil, nil, fmt.Errorf("create Google client: %w", err)
 	}
-	return legacy, legacy.GM, nil
+	return legacy, newGMCompat(legacy.GM), nil
 }
 
 func (a *Adapter) Start(
