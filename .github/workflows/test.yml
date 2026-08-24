@@ -5,6 +5,24 @@ on:
   push:
     branches:
       - main
+  # Callable so GHCR Publish can gate the image build on this suite. Both
+  # inputs exist for that caller: `ref` because a workflow_call's `github.sha`
+  # is the caller's commit, which for the nightly sync is the PRE-rebase tip;
+  # `container_only` because the site and macOS jobs build artifacts that are
+  # not in the image, and a broken Swift build must not block a server fix
+  # from deploying.
+  workflow_call:
+    inputs:
+      ref:
+        description: Commit to test; defaults to the triggering commit.
+        type: string
+        required: false
+        default: ''
+      container_only:
+        description: Run only the jobs whose failures can break the container image.
+        type: boolean
+        required: false
+        default: false
 
 permissions:
   contents: read
@@ -19,6 +37,8 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.sha }}
 
       - uses: actions/setup-go@v5
         with:
@@ -53,6 +73,8 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.sha }}
 
       - uses: actions/setup-go@v5
         with:
@@ -68,6 +90,8 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.sha }}
 
       - uses: actions/setup-go@v5
         with:
@@ -100,6 +124,7 @@ jobs:
 
   site-build:
     name: Site Build
+    if: ${{ !inputs.container_only }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     defaults:
@@ -107,6 +132,8 @@ jobs:
         working-directory: site
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.sha }}
 
       - uses: actions/setup-node@v4
         with:
@@ -122,10 +149,13 @@ jobs:
 
   macos-build:
     name: macOS App Build
+    if: ${{ !inputs.container_only }}
     runs-on: macos-latest
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.sha }}
 
       - name: Guard against the stale root Xcode tree
         run: |
