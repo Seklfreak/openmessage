@@ -434,12 +434,16 @@ Without it, a single transient network blip during a scheduled token refresh
 permanently killed the session.
 
 The replacement in `go.mod` pins fork commit
-[`0e43542dfa0e`](https://github.com/MaxGhenis/gmessages/commit/0e43542dfa0e0b97e410f185a5842e8740106099).
+[`d18c46741a8d`](https://github.com/Seklfreak/gmessages/commit/d18c46741a8ddd91bbd74aa4f7552937fdfcaf9c).
 It is upstream `mautrix/gmessages` base
-[`3433cc07d5ea`](https://github.com/mautrix/gmessages/commit/3433cc07d5ea9522309adad3a8c92ed5b08dc11d),
-which contains the auth-refresh retry, plus exactly one carried patch:
+[`9743919f4884`](https://github.com/mautrix/gmessages/commit/9743919f4884327db998fe0f227c073f3f3aceb3)
+(v26.08), which contains the auth-refresh retry, plus exactly one carried patch:
 `Add ListConversationsWithCursor for paginated conversation listing`. That
 method is required by OpenMessage's backfill and reconciliation paths.
+
+The fork lives in `Seklfreak/gmessages` because rebasing has to be doable from
+this repo; `MaxGhenis/gmessages` (the original home of the carried patch, frozen
+at base `3433cc07d5ea`) is not writable from here.
 
 **Keep the fork rebased on upstream.** The weekly
 `gmessages-fork-drift.yml` workflow records the base and patch set and fails as
@@ -447,6 +451,18 @@ soon as upstream `main` advances. When rebasing, replay the single carried
 patch, verify the auth-refresh retry is still present, and update the fork pin
 and recorded SHAs together. The durable architectural fix (move SMS/RCS onto
 an Android companion) is issue #75.
+
+**libgm now takes a `context.Context` on every phone request** (upstream
+[`c0a2d38a24dc`](https://github.com/mautrix/gmessages/commit/c0a2d38a24dc187e135aad60cc35a4f840954905),
+which also added a 60s hard timeout and cancels waiters on disconnect). Every
+call site here passes `client.GMContext()` — a background context — because the
+contexts actually in scope are the wrong ones to hand down: an HTTP handler's
+`r.Context()` dies when the browser navigates away, which would cancel a send
+mid-flight and leave delivery ambiguous. libgm's own hard timeout and
+disconnect-time cancellation still apply. `bridgeadapters/google`'s `gmCompat`
+shim keeps that package's context-free seams — and their test fakes —
+unchanged. Thread a real context only together with a deliberate decision about
+what cancelling a half-sent message should mean.
 
 ### Don't over-reconnect
 

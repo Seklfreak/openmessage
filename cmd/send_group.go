@@ -8,6 +8,7 @@ import (
 	"go.mau.fi/mautrix-gmessages/pkg/libgm/gmproto"
 
 	"github.com/maxghenis/openmessage/internal/app"
+	"github.com/maxghenis/openmessage/internal/client"
 )
 
 func RunSendGroup(logger zerolog.Logger, phones []string, message string) error {
@@ -32,7 +33,7 @@ func runLegacySendGroup(logger zerolog.Logger, phones []string, message string) 
 		return fmt.Errorf("client not connected")
 	}
 
-	convResp, err := cli.GM.GetOrCreateConversation(&gmproto.GetOrCreateConversationRequest{
+	convResp, err := cli.GM.GetOrCreateConversation(client.GMContext(), &gmproto.GetOrCreateConversationRequest{
 		Numbers: app.NewContactNumbers(phones),
 	})
 	if err != nil {
@@ -46,7 +47,7 @@ func runLegacySendGroup(logger zerolog.Logger, phones []string, message string) 
 	}
 
 	payload := app.BuildSendPayload(conv.GetConversationID(), message, "", "", nil)
-	_, err = cli.GM.SendMessage(payload)
+	_, err = cli.GM.SendMessage(client.GMContext(), payload)
 	if err != nil {
 		a.HandleGoogleAuthExpiredError(err)
 		return fmt.Errorf("send: %w", err)
