@@ -358,6 +358,42 @@ Connecting/disconnecting the Google web session many times in a short window
 valid session. The fix is to **stop and let it cool down** (minutes up to ~1h),
 not to hammer reconnect. Sends may land in brief connected windows meanwhile.
 
+### "Phone not responding" — force a request, don't reconnect and don't re-pair
+
+Symptom: `/api/status` shows `"phone_responding": false` with
+`"Your phone isn't responding to OpenMessage right now"`, and operations fail
+with `phone did not respond to request in 1m0s`. That minute is libgm's
+`responseHardTimeout` (upstream
+[`c0a2d38a24dc`](https://github.com/mautrix/gmessages/commit/c0a2d38a24dc187e135aad60cc35a4f840954905));
+before it existed the same condition simply hung.
+
+**Read it as "the phone didn't answer", not "the session died."** `connected`
+and `paired` stay true, `needs_pairing` stays false, and no needs-repair health
+notification fires — nothing here justifies a re-pair. Usual causes are
+phone-side: locked/dozing, off the network, or Messages frozen by battery
+optimisation. Fix the phone first.
+
+**Then force a request, because the app will not notice on its own for a
+while.** Ditto pings back off hard once they start failing — observed
+2026-08-24 stretching to roughly one per hour (14:13 → 15:17 → 16:21), so the
+phone can be healthy and the app still blind until the next one. `POST
+/api/backfill` makes real requests immediately:
+
+```bash
+curl -s -X POST http://127.0.0.1:7007/api/backfill   # -> {"status":"started"}
+curl -s http://127.0.0.1:7007/api/status | jq '.backfill, .google.phone_responding'
+```
+
+Expect the first attempt to fail — on 2026-08-24 all three folders timed out at
+60s (`errors=3, conversations=0`) — **that is fine and is the point**: the
+attempt re-establishes contact. The app then logs `Phone responding again` and
+starts its own reconcile with `reason=phone_responding_again`. The next
+backfill returned `conversations=11, messages=123, errors=0`.
+
+This is a *request*, not a reconnect, so it does not feed the throttle above.
+Restarting the process to "fix" this does the opposite: it resets nothing on
+the phone side and spends another reconnect against the limit.
+
 ## WhatsApp linking (QR and phone-number code)
 
 Hard-won facts from the 2026-07-03/04 re-pair ordeal:
