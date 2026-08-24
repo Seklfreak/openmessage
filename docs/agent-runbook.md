@@ -303,31 +303,38 @@ is hardened-runtime only) so the backend can read Chrome's cookie DB and the
 `Chrome Safe Storage` keychain item. First keychain read may prompt once;
 Always Allow persists it.
 
-### gmessages fork contract
+### gmessages: no fork, and why
+
+`go.mod` requires upstream `go.mau.fi/mautrix-gmessages` at a plain tag, with
+no `replace`. It used to carry one, and the reasons it no longer does are worth
+knowing before anyone reintroduces it.
 
 **Root cause of the repeated deaths (fixed in #73):** the `MaxGhenis/gmessages`
 fork was frozen at its 2026-03-02 base and missed upstream's 2026-05-05
 [`libgm/longpoll: retry on network error when refreshing auth token`](https://github.com/mautrix/gmessages/commit/0b54a8fe65207f81d353ffe63f4d2549c2eb7976).
 Without it, a single transient network blip during a scheduled token refresh
-permanently killed the session.
+permanently killed the session. **That commit is in upstream now** (it predates
+v26.08), so plain upstream carries the fix and the fork is no longer what keeps
+the session alive. Any pin must stay at or above **v0.2608.0** to keep it.
 
-The replacement in `go.mod` pins fork commit
-[`d18c46741a8d`](https://github.com/Seklfreak/gmessages/commit/d18c46741a8ddd91bbd74aa4f7552937fdfcaf9c).
-It is upstream `mautrix/gmessages` base
-[`9743919f4884`](https://github.com/mautrix/gmessages/commit/9743919f4884327db998fe0f227c073f3f3aceb3)
-(v26.08), which contains the auth-refresh retry, plus exactly one carried patch:
-`Add ListConversationsWithCursor for paginated conversation listing`. That
-method is required by OpenMessage's backfill and reconciliation paths.
+The fork's only other cargo was a 7-line patch adding
+`ListConversationsWithCursor`, because upstream takes a `*gmproto.Cursor` on
+`FetchMessages` but not on `ListConversations`. It bought paging past 100
+conversations in a folder — a path this account never reached (11 SMS
+conversations; the first page always returned everything and the loop exited).
+It cost a weekly drift workflow, a contract test, and a manual rebase every
+time upstream moved. Dropped as a bad trade.
 
-The fork lives in `Seklfreak/gmessages` because rebasing has to be doable from
-this repo; `MaxGhenis/gmessages` (the original home of the carried patch, frozen
-at base `3433cc07d5ea`) is not writable from here.
+**The ceiling that replaced it:** `listFolder` in `internal/app/backfill.go`
+makes one `ListConversations` call per folder with
+`listFolderConversationCap` (100). There is no second request to make. A folder
+that fills the cap logs a warning and records a `BackfillProgress` error, so a
+truncated deep backfill can't be mistaken for a complete one — that reporting
+is the whole safety net, so don't quietly drop it.
 
-**Keep the fork rebased on upstream.** The weekly
-`gmessages-fork-drift.yml` workflow records the base and patch set and fails as
-soon as upstream `main` advances. When rebasing, replay the single carried
-patch, verify the auth-refresh retry is still present, and update the fork pin
-and recorded SHAs together. The durable architectural fix (move SMS/RCS onto
+**If you ever need paging back**, send the patch upstream rather than forking:
+it is small, and symmetric with the cursor `FetchMessages` already takes.
+mautrix merges community PRs. The durable architectural fix (move SMS/RCS onto
 an Android companion) is issue #75.
 
 **libgm now takes a `context.Context` on every phone request** (upstream

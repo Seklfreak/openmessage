@@ -2,8 +2,6 @@ filippo.io/edwards25519 v1.2.0 h1:crnVqOiS4jqYleHd9vaKZ+HKtHfllngJIiOpNpoJsjo=
 filippo.io/edwards25519 v1.2.0/go.mod h1:xzAOLCNug/yB62zG1bQ8uziwrIqIuxhctzJT18Q77mc=
 github.com/DATA-DOG/go-sqlmock v1.5.2 h1:OcvFkGmslmlZibjAjaHm3L//6LiuBgolP7OputlJIzU=
 github.com/DATA-DOG/go-sqlmock v1.5.2/go.mod h1:88MAG/4G7SMwSE3CeA0ZKzrT5CiOU3OJ+JlNzwDqpNU=
-github.com/Seklfreak/gmessages v0.2608.1-0.20260824124418-d18c46741a8d h1:AkkttgKgFm4P5/UGpXW8O1jXW9cFHKUqI7ZvknESvRc=
-github.com/Seklfreak/gmessages v0.2608.1-0.20260824124418-d18c46741a8d/go.mod h1:NzomE/+0T7S2/BaX4f1KVZUYi34J7WoLp57o5F/GHUU=
 github.com/agnivade/levenshtein v1.2.1 h1:EHBY3UOn1gwdy/VbFwgo4cxecRznFk7fKWN1KOX7eoM=
 github.com/agnivade/levenshtein v1.2.1/go.mod h1:QVVI16kDrtSuwcpd0p1+xMC6Z/VfhtCyDIjcwga4/DU=
 github.com/andreyvit/diff v0.0.0-20170406064948-c7f18ee00883 h1:bvNMNQO63//z+xNgfBlViaCIJKLlCJ6/fmUseuG0wVQ=
@@ -77,6 +75,8 @@ github.com/yosida95/uritemplate/v3 v3.0.2 h1:Ed3Oyj9yrmi9087+NczuL5BwkIc4wvTb5zI
 github.com/yosida95/uritemplate/v3 v3.0.2/go.mod h1:ILOh0sOhIJR3+L/8afwt/kE++YT040gmv5BQTMR2HP4=
 go.mau.fi/libsignal v0.2.2 h1:QV+XdzQkm3x3aSG7FcqfGSZuFXz83pRZPBFaPygHbOU=
 go.mau.fi/libsignal v0.2.2/go.mod h1:CRlIQg2J8uYTfDFvNoO8/KcZjs5cey0vbc6oj/bssY0=
+go.mau.fi/mautrix-gmessages v0.2608.0 h1:ZfwOqHqIDz2ms2F7Bt2QE/WH57IGZFA8+g1hPNk5Hz0=
+go.mau.fi/mautrix-gmessages v0.2608.0/go.mod h1:NzomE/+0T7S2/BaX4f1KVZUYi34J7WoLp57o5F/GHUU=
 go.mau.fi/util v0.10.1-0.20260820140024-eb612d936fde h1:eMHY9dMDkNuDMWhfTbMZHbbsxj7G6mfujjKei1HaFQM=
 go.mau.fi/util v0.10.1-0.20260820140024-eb612d936fde/go.mod h1:z0ZZNt4hq3FZbUKnunexE/QscCx7VkLvQSvtggc/aE8=
 go.mau.fi/whatsmeow v0.0.0-20260821141805-33cfac511629 h1:99p9fTS1G73a1aifCVaV5MX4hDq0lVUKWGoUNoXyE3A=

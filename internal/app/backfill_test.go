@@ -44,39 +44,24 @@ type mockGMClient struct {
 	contactThumbCalls     map[string]int
 }
 
-func (m *mockGMClient) ListConversationsWithCursor(count int, folder gmproto.ListConversationsRequest_Folder, cursor *gmproto.Cursor) (*gmproto.ListConversationsResponse, error) {
+func (m *mockGMClient) ListConversations(count int, folder gmproto.ListConversationsRequest_Folder) (*gmproto.ListConversationsResponse, error) {
 	if err, ok := m.listConvErrors[folder]; ok && err != nil {
 		return nil, err
 	}
 
+	// libgm has no cursor for conversation listing, so only the first page is
+	// ever reachable. Extra pages in a fixture stand for conversations past the
+	// cap, which the real API would not return either.
 	pages := m.conversations[folder]
 	if len(pages) == 0 {
 		return &gmproto.ListConversationsResponse{}, nil
 	}
 
-	// Determine which page based on cursor
-	pageIdx := 0
-	if cursor != nil && cursor.LastItemID != "" {
-		// Parse page index from cursor ID (format: "page_N")
-		fmt.Sscanf(cursor.LastItemID, "page_%d", &pageIdx)
+	convos := pages[0]
+	if count > 0 && len(convos) > count {
+		convos = convos[:count]
 	}
-
-	if pageIdx >= len(pages) {
-		return &gmproto.ListConversationsResponse{}, nil
-	}
-
-	resp := &gmproto.ListConversationsResponse{
-		Conversations: pages[pageIdx],
-	}
-
-	// Set cursor for next page if there are more pages
-	if pageIdx+1 < len(pages) {
-		resp.Cursor = &gmproto.Cursor{
-			LastItemID: fmt.Sprintf("page_%d", pageIdx+1),
-		}
-	}
-
-	return resp, nil
+	return &gmproto.ListConversationsResponse{Conversations: convos}, nil
 }
 
 func (m *mockGMClient) FetchMessages(conversationID string, count int64, cursor *gmproto.Cursor) (*gmproto.ListMessagesResponse, error) {
@@ -345,33 +330,69 @@ func TestDeepBackfillSinglePageSingleFolder(t *testing.T) {
 	}
 }
 
-func TestDeepBackfillMultiPageSingleFolder(t *testing.T) {
+// Conversation listing has no cursor — libgm only offers one for FetchMessages
+// — so a deep backfill reaches at most listFolderConversationCap conversations
+// per folder. A folder that fills the cap may hold more that we cannot reach,
+// and a silently truncated backfill is indistinguishable from a complete one,
+// so it must be reported.
+func TestDeepBackfillReportsFolderHittingTheListingCap(t *testing.T) {
+	full := make([]*gmproto.Conversation, listFolderConversationCap)
+	messages := map[string][][]*gmproto.Message{}
+	for i := range full {
+		id := fmt.Sprintf("c%d", i)
+		full[i] = makeConv(id, fmt.Sprintf("Contact %d", i))
+		messages[id] = [][]*gmproto.Message{{makeMsg("m"+id, id, "hi", 100)}}
+	}
+
+	mock := &mockGMClient{
+		conversations: map[gmproto.ListConversationsRequest_Folder][][]*gmproto.Conversation{
+			gmproto.ListConversationsRequest_INBOX: {full},
+		},
+		messages: messages,
+	}
+
+	a := newTestApp(t, mock)
+	a.DeepBackfill()
+
+	progress := a.GetBackfillProgress()
+	if progress.ConversationsFound != listFolderConversationCap {
+		t.Fatalf("progress.ConversationsFound = %d, want %d", progress.ConversationsFound, listFolderConversationCap)
+	}
+	var capped bool
+	for _, detail := range progress.ErrorDetails {
+		if strings.Contains(detail, "cap") {
+			capped = true
+			break
+		}
+	}
+	if !capped {
+		t.Fatalf("a folder that filled the cap was not reported: %v", progress.ErrorDetails)
+	}
+}
+
+// A folder that stays under the cap must not be reported as truncated.
+func TestDeepBackfillUnderTheCapReportsNothing(t *testing.T) {
 	mock := &mockGMClient{
 		conversations: map[gmproto.ListConversationsRequest_Folder][][]*gmproto.Conversation{
 			gmproto.ListConversationsRequest_INBOX: {
-				{makeConv("c1", "Alice"), makeConv("c2", "Bob")},     // page 0
-				{makeConv("c3", "Charlie"), makeConv("c4", "Diana")}, // page 1
+				{makeConv("c1", "Alice"), makeConv("c2", "Bob")},
 			},
 		},
 		messages: map[string][][]*gmproto.Message{
 			"c1": {{makeMsg("m1", "c1", "hi", 100)}},
 			"c2": {{makeMsg("m2", "c2", "hey", 200)}},
-			"c3": {{makeMsg("m3", "c3", "yo", 300)}},
-			"c4": {{makeMsg("m4", "c4", "sup", 400)}},
 		},
 	}
 
 	a := newTestApp(t, mock)
 	a.DeepBackfill()
 
-	convos, _ := a.Store.ListConversations(50)
-	if len(convos) != 4 {
-		t.Fatalf("got %d conversations, want 4 (2 pages)", len(convos))
-	}
-
 	progress := a.GetBackfillProgress()
-	if progress.ConversationsFound != 4 {
-		t.Errorf("progress.ConversationsFound = %d, want 4", progress.ConversationsFound)
+	if progress.ConversationsFound != 2 {
+		t.Fatalf("progress.ConversationsFound = %d, want 2", progress.ConversationsFound)
+	}
+	if progress.Errors != 0 {
+		t.Fatalf("progress.Errors = %d (%v), want 0", progress.Errors, progress.ErrorDetails)
 	}
 }
 
@@ -406,35 +427,6 @@ func TestDeepBackfillMultiFolder(t *testing.T) {
 	progress := a.GetBackfillProgress()
 	if progress.FoldersScanned != 3 {
 		t.Errorf("progress.FoldersScanned = %d, want 3", progress.FoldersScanned)
-	}
-}
-
-func TestDeepBackfillMultiPageMultiFolder(t *testing.T) {
-	mock := &mockGMClient{
-		conversations: map[gmproto.ListConversationsRequest_Folder][][]*gmproto.Conversation{
-			gmproto.ListConversationsRequest_INBOX: {
-				{makeConv("c1", "Alice")},
-				{makeConv("c2", "Bob")},
-			},
-			gmproto.ListConversationsRequest_ARCHIVE: {
-				{makeConv("c3", "Charlie")},
-				{makeConv("c4", "Diana")},
-			},
-		},
-		messages: map[string][][]*gmproto.Message{
-			"c1": {{makeMsg("m1", "c1", "hi", 100)}},
-			"c2": {{makeMsg("m2", "c2", "hey", 200)}},
-			"c3": {{makeMsg("m3", "c3", "yo", 300)}},
-			"c4": {{makeMsg("m4", "c4", "sup", 400)}},
-		},
-	}
-
-	a := newTestApp(t, mock)
-	a.DeepBackfill()
-
-	convos, _ := a.Store.ListConversations(50)
-	if len(convos) != 4 {
-		t.Fatalf("got %d conversations, want 4", len(convos))
 	}
 }
 

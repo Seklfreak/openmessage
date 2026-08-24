@@ -7,7 +7,7 @@ require (
 	github.com/mark3labs/mcp-go v0.43.2
 	github.com/mdp/qrterminal/v3 v3.2.1
 	github.com/rs/zerolog v1.35.1
-	go.mau.fi/mautrix-gmessages v0.2601.0
+	go.mau.fi/mautrix-gmessages v0.2608.0
 	go.mau.fi/util v0.10.1-0.20260820140024-eb612d936fde
 	go.mau.fi/whatsmeow v0.0.0-20260821141805-33cfac511629
 	golang.org/x/crypto v0.55.0
@@ -47,5 +47,3 @@ require (
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.11.0 // indirect
 )
-
-replace go.mau.fi/mautrix-gmessages => github.com/Seklfreak/gmessages v0.2608.1-0.20260824124418-d18c46741a8d

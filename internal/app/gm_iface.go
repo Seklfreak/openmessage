@@ -10,7 +10,7 @@ import (
 // GMClient abstracts the libgm methods used by backfill so we can test with
 // a mock implementation. The real implementation wraps *libgm.Client.
 type GMClient interface {
-	ListConversationsWithCursor(count int, folder gmproto.ListConversationsRequest_Folder, cursor *gmproto.Cursor) (*gmproto.ListConversationsResponse, error)
+	ListConversations(count int, folder gmproto.ListConversationsRequest_Folder) (*gmproto.ListConversationsResponse, error)
 	FetchMessages(conversationID string, count int64, cursor *gmproto.Cursor) (*gmproto.ListMessagesResponse, error)
 	GetOrCreateConversation(req *gmproto.GetOrCreateConversationRequest) (*gmproto.GetOrCreateConversationResponse, error)
 	ListContacts() (*gmproto.ListContactsResponse, error)
@@ -27,8 +27,8 @@ func newRealGMClient(gm *libgm.Client) GMClient {
 	return &realGMClient{gm: gm}
 }
 
-func (r *realGMClient) ListConversationsWithCursor(count int, folder gmproto.ListConversationsRequest_Folder, cursor *gmproto.Cursor) (*gmproto.ListConversationsResponse, error) {
-	return r.gm.ListConversationsWithCursor(client.GMContext(), count, folder, cursor)
+func (r *realGMClient) ListConversations(count int, folder gmproto.ListConversationsRequest_Folder) (*gmproto.ListConversationsResponse, error) {
+	return r.gm.ListConversations(client.GMContext(), count, folder)
 }
 
 func (r *realGMClient) FetchMessages(conversationID string, count int64, cursor *gmproto.Cursor) (*gmproto.ListMessagesResponse, error) {
