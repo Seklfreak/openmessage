@@ -15,6 +15,17 @@ import (
 	"github.com/maxghenis/openmessage/internal/client"
 )
 
+// tmpIDTransportRequest, tmpIDMediaRequest, and tmpIDMediaRequestCaption are
+// the UUIDv5 tmpIDs app.BuildSendPayloadWithTmpID derives from the RequestIDs
+// used below. They are spelled out rather than recomputed so a change to that
+// derivation — which would give an in-flight retry a different tmpID than its
+// original send, and cost Google's server-side dedup — fails here.
+const (
+	tmpIDTransportRequest    = "87068c8b-a9ce-5097-b603-df375bad396a"
+	tmpIDMediaRequest        = "34fc437f-86c3-530f-89fb-a3da1b837303"
+	tmpIDMediaRequestCaption = "856bb426-184c-5a73-9c94-0fbea05560b3"
+)
+
 func TestSendTextNotConnectedIsClassifiedPreCall(t *testing.T) {
 	host := newTestApp(t)
 	a := New("google-primary", host, func() bool { return true })
@@ -116,7 +127,7 @@ func TestSendTextSuccessUsesStablePayloadAndMapsResult(t *testing.T) {
 	if err != nil {
 		t.Fatalf("SendText() error = %v", err)
 	}
-	if result.RemoteMessageID != "transport-request-id" || !result.EchoExpected || !result.AcceptedAt.IsZero() {
+	if result.RemoteMessageID != tmpIDTransportRequest || !result.EchoExpected || !result.AcceptedAt.IsZero() {
 		t.Fatalf("result = %+v, want stable TmpID, echo expected, and zero AcceptedAt", result)
 	}
 	if fake.conversationID != "remote-conversation" || fake.conversationCalls != 1 {
@@ -127,10 +138,10 @@ func TestSendTextSuccessUsesStablePayloadAndMapsResult(t *testing.T) {
 		t.Fatalf("SendMessage = (%d calls, payload %p), want one non-nil payload", fake.sendCalls, fake.sent)
 	}
 	payload := fake.sent
-	if payload.GetTmpID() != "transport-request-id" ||
-		payload.GetMessagePayload().GetTmpID() != "transport-request-id" ||
-		payload.GetMessagePayload().GetTmpID2() != "transport-request-id" {
-		t.Fatalf("payload TmpIDs = (%q, %q, %q), want transport-request-id in all positions",
+	if payload.GetTmpID() != tmpIDTransportRequest ||
+		payload.GetMessagePayload().GetTmpID() != tmpIDTransportRequest ||
+		payload.GetMessagePayload().GetTmpID2() != tmpIDTransportRequest {
+		t.Fatalf("payload TmpIDs = (%q, %q, %q), want the derived tmpID in all positions",
 			payload.GetTmpID(), payload.GetMessagePayload().GetTmpID(), payload.GetMessagePayload().GetTmpID2())
 	}
 	if payload.GetConversationID() != "remote-conversation" ||
@@ -800,7 +811,7 @@ func TestSendMediaSuccessUsesStablePayloadAndMapsResult(t *testing.T) {
 	if err != nil {
 		t.Fatalf("SendMedia() error = %v", err)
 	}
-	if result.RemoteMessageID != "transport-request-id" || !result.EchoExpected || !result.AcceptedAt.IsZero() {
+	if result.RemoteMessageID != tmpIDTransportRequest || !result.EchoExpected || !result.AcceptedAt.IsZero() {
 		t.Fatalf("result = %+v, want stable TmpID, echo expected, and zero AcceptedAt", result)
 	}
 	if got := string(fake.uploadData); got != "data" {
@@ -816,10 +827,10 @@ func TestSendMediaSuccessUsesStablePayloadAndMapsResult(t *testing.T) {
 		t.Fatalf("SendMessage calls = %d, want 1", len(fake.sent))
 	}
 	payload := fake.sent[0]
-	if payload.GetTmpID() != "transport-request-id" ||
-		payload.GetMessagePayload().GetTmpID() != "transport-request-id" ||
-		payload.GetMessagePayload().GetTmpID2() != "transport-request-id" {
-		t.Fatalf("payload TmpIDs = (%q, %q, %q), want transport-request-id in all positions",
+	if payload.GetTmpID() != tmpIDTransportRequest ||
+		payload.GetMessagePayload().GetTmpID() != tmpIDTransportRequest ||
+		payload.GetMessagePayload().GetTmpID2() != tmpIDTransportRequest {
+		t.Fatalf("payload TmpIDs = (%q, %q, %q), want the derived tmpID in all positions",
 			payload.GetTmpID(), payload.GetMessagePayload().GetTmpID(), payload.GetMessagePayload().GetTmpID2())
 	}
 	if payload.GetMessagePayload().GetParticipantID() != "+15551234567" || payload.GetSIMPayload() != sim {
@@ -859,16 +870,16 @@ func TestSendMediaCaptionUsesStableFollowUpTextPayload(t *testing.T) {
 	if err != nil {
 		t.Fatalf("SendMedia() error = %v", err)
 	}
-	if result.RemoteMessageID != "media-request-id" {
-		t.Fatalf("RemoteMessageID = %q, want media-request-id", result.RemoteMessageID)
+	if result.RemoteMessageID != tmpIDMediaRequest {
+		t.Fatalf("RemoteMessageID = %q, want %q", result.RemoteMessageID, tmpIDMediaRequest)
 	}
 	if len(fake.sent) != 2 {
 		t.Fatalf("SendMessage calls = %d, want media plus caption", len(fake.sent))
 	}
 	caption := fake.sent[1]
-	if caption.GetTmpID() != "media-request-id:caption" ||
-		caption.GetMessagePayload().GetTmpID() != "media-request-id:caption" ||
-		caption.GetMessagePayload().GetTmpID2() != "media-request-id:caption" {
+	if caption.GetTmpID() != tmpIDMediaRequestCaption ||
+		caption.GetMessagePayload().GetTmpID() != tmpIDMediaRequestCaption ||
+		caption.GetMessagePayload().GetTmpID2() != tmpIDMediaRequestCaption {
 		t.Fatalf("caption TmpIDs = (%q, %q, %q), want stable :caption suffix",
 			caption.GetTmpID(), caption.GetMessagePayload().GetTmpID(), caption.GetMessagePayload().GetTmpID2())
 	}
