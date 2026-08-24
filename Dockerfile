@@ -10,7 +10,10 @@
 #          (to re-pair, stop the container and run pair in a fresh one with the same volume)
 # Connect: claude mcp add -s user --transport sse openmessage http://<host>:7007/mcp/sse
 
-FROM golang:1.25-alpine AS build
+# Keep this in step with the go directive in go.mod: the image pins its own
+# toolchain and GOTOOLCHAIN defaults to local here, so a go.mod bump the CI
+# workflows absorb via go-version-file will break this build instead.
+FROM golang:1.26-alpine AS build
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
