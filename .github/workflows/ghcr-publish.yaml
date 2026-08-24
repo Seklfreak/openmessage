@@ -10,6 +10,9 @@ name: GHCR Publish
 # trigger a push event, so the sync workflow has to invoke this build
 # explicitly. The caller passes the commit to build via `ref` — the
 # push-event default (github.sha) would be the pre-rebase tip there.
+#
+# This workflow is the only test gate `patches` has, so it runs the suite
+# itself before building; see the `test` job below.
 
 on:
   push:
@@ -34,7 +37,20 @@ permissions:
   packages: write
 
 jobs:
+  # Nothing else gates this branch: test.yml runs on pull_request and
+  # push:main, and `patches` gets neither — the nightly upstream rebase lands
+  # by force-push. Without this the image would build and Flux would roll out
+  # a tree no test ever saw. Scoped to the jobs whose failure can break the
+  # image, so an unrelated Swift or marketing-site break cannot strand a
+  # server fix.
+  test:
+    uses: ./.github/workflows/test.yml
+    with:
+      ref: ${{ inputs.ref || github.sha }}
+      container_only: true
+
   build:
+    needs: test
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
